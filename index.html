@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jeu de Tables de Multiplication (7 Minutes)</title>
+    
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f0f8ff; /* Bleu très clair */
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 30px 40px;
+            border-radius: 12px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+            width: 100%;
+            max-width: 550px;
+            text-align: center;
+            border-top: 5px solid #ff6347; /* Tomate */
+        }
+
+        h1 {
+            color: #ff6347;
+            margin-bottom: 25px;
+            font-size: 1.8em;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        input[type="text"], input[type="number"] {
+            width: calc(100% - 22px);
+            padding: 12px;
+            margin-bottom: 20px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 1.1em;
+        }
+
+        button {
+            background-color: #28a745; /* Vert */
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1.1em;
+            transition: background-color 0.3s, transform 0.1s;
+        }
+
+        button:hover {
+            background-color: #218838;
+            transform: translateY(-1px);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        #timer {
+            font-size: 1.4em;
+            font-weight: 900;
+            color: #007bff; /* Bleu vif */
+            margin: 20px 0;
+            padding: 5px;
+            border: 2px dashed #007bff;
+            border-radius: 5px;
+            display: inline-block;
+        }
+
+        #current-question {
+            font-size: 2.2em;
+            font-weight: bold;
+            margin: 30px 0;
+            color: #333;
+        }
+
+        /* Le feedback est laissé pour la structure mais sera vidé */
+        #feedback {
+            min-height: 25px;
+            margin-top: 15px;
+            font-size: 1.1em;
+            font-weight: bold;
+            visibility: hidden; /* Cacher le contenu de feedback */
+        }
+        
+        #result-section {
+            padding: 20px;
+            border: 2px solid #ff6347;
+            border-radius: 8px;
+            background-color: #fffaf0; /* Crème clair */
+        }
+
+        #result-section h2 {
+            color: #28a745;
+        }
+        
+        #result-section p {
+            font-size: 1.4em;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        
+        #final-score {
+            font-size: 2em; /* Grosse taille pour le score */
+            color: #007bff;
+            margin: 15px 0;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Entraînement aux Multiplications ✖️</h1>
+
+        <div id="setup-section">
+            <label for="studentName">Nom de l'élève :</label>
+            <input type="text" id="studentName" placeholder="Écris ton nom ici" required>
+            <button onclick="startGame()">Commencer l'entraînement (7 Minutes)</button>
+        </div>
+
+        <div id="game-section" class="hidden">
+            <p>Bonjour, <span id="display-name" style="font-weight: bold; color: #ff6347;"></span>! Tu as **7 minutes** pour faire le maximum.</p>
+            <div id="timer">Temps restant : **07:00**</div>
+
+            <div id="question-area">
+                <p id="current-question">Question : ?</p>
+                <input type="number" id="answer-input" placeholder="Ta réponse" required>
+                <button onclick="checkAnswer()">Valider la réponse</button>
+                <p id="feedback"></p>
+            </div>
+        </div>
+
+        <div id="result-section" class="hidden">
+            <h2>Résultats 🏆</h2>
+            <p>Bravo, <span id="final-name" style="font-weight: bold; color: #ff6347;"></span>!</p>
+            <p>Note Finale :</p>
+            <span id="final-score"></span>
+            <p style="font-size: 1em; font-weight: normal; margin-top: 20px;">
+                Total des questions faites : <span id="total-done"></span>
+            </p>
+            <button onclick="window.location.reload()">Recommencer</button>
+        </div>
+    </div>
+
+    <script>
+        // Variables Globales
+        let studentName = '';
+        let questionsDone = 0;
+        let questionsCorrect = 0;
+        let timerSeconds = 420; // 7 minutes * 60 secondes = 420 secondes
+        let timerInterval;
+        let currentQuestion = { factor1: 0, factor2: 0 };
+
+        // Les tables à utiliser (x0, x1, x2, x5, x10)
+        const validFactors1 = [0, 1, 2, 5, 10];
+        // Les nombres de 1 à 10 pour le deuxième facteur
+        const validFactors2 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+        /**
+         * Formate les secondes en M:SS.
+         */
+        function formatTime(totalSeconds) {
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            const paddedSeconds = seconds < 10 ? '0' + seconds : seconds;
+            return `${minutes}:${paddedSeconds}`;
+        }
+
+        /**
+         * Commence le jeu après avoir entré le nom.
+         */
+        function startGame() {
+            studentName = document.getElementById('studentName').value.trim();
+
+            if (studentName === '') {
+                alert("S'il te plaît, entre ton nom pour commencer l'entraînement.");
+                document.getElementById('studentName').focus();
+                return; 
+            }
+
+            // 1. Mise à jour de l'affichage
+            document.getElementById('setup-section').classList.add('hidden');
+            document.getElementById('game-section').classList.remove('hidden');
+            document.getElementById('display-name').textContent = studentName;
+            document.getElementById('answer-input').focus();
+            
+            // 2. Initialisation du temps
+            document.getElementById('timer').innerHTML = `Temps restant : **${formatTime(timerSeconds)}**`;
+
+            // 3. Lancement
+            startTimer();
+            generateNewQuestion();
+        }
+
+        /**
+         * Lance le compte à rebours de 7 minutes.
+         */
+        function startTimer() {
+            const timerDisplay = document.getElementById('timer');
+
+            timerInterval = setInterval(() => {
+                timerSeconds--;
+                timerDisplay.innerHTML = `Temps restant : **${formatTime(timerSeconds)}**`;
+
+                if (timerSeconds <= 0) {
+                    clearInterval(timerInterval);
+                    endGame();
+                }
+            }, 1000);
+        }
+
+        /**
+         * Génère une nouvelle question de multiplication aléatoire.
+         */
+        function generateNewQuestion() {
+            const index1 = Math.floor(Math.random() * validFactors1.length);
+            const factor1 = validFactors1[index1];
+
+            const index2 = Math.floor(Math.random() * validFactors2.length);
+            const factor2 = validFactors2[index2];
+
+            currentQuestion.factor1 = factor1;
+            currentQuestion.factor2 = factor2;
+
+            document.getElementById('current-question').textContent = `${factor1} x ${factor2} = ?`;
+            document.getElementById('answer-input').value = ''; 
+            document.getElementById('answer-input').focus(); 
+            
+            // On s'assure que le feedback est invisible (bien qu'il soit vidé)
+            document.getElementById('feedback').textContent = ''; 
+        }
+
+        /**
+         * Vérifie la réponse de l'élève.
+         */
+        function checkAnswer() {
+            if (timerSeconds <= 0) return; 
+
+            const answerInput = document.getElementById('answer-input');
+            const userAnswer = parseInt(answerInput.value);
+            const correctAnswer = currentQuestion.factor1 * currentQuestion.factor2;
+            const feedbackElement = document.getElementById('feedback');
+
+            // Vérification simple de l'entrée
+            if (answerInput.value.trim() === '' || isNaN(userAnswer)) {
+                // Pas de feedback visuel immédiat, on peut juste empêcher l'incrémentation
+                // et redemander une réponse
+                feedbackElement.textContent = "Veuillez entrer un nombre valide !";
+                feedbackElement.style.color = 'red';
+                answerInput.focus();
+                return;
+            }
+
+            questionsDone++;
+
+            // Mise à jour du score, SANS feedback visible
+            if (userAnswer === correctAnswer) {
+                questionsCorrect++;
+            }
+
+            // Passe à la question suivante immédiatement
+            generateNewQuestion();
+        }
+
+        /**
+         * Arrête le jeu et affiche les résultats.
+         */
+        function endGame() {
+            document.getElementById('game-section').classList.add('hidden');
+            document.getElementById('result-section').classList.remove('hidden');
+
+            // Afficher les résultats finaux
+            document.getElementById('final-name').textContent = studentName;
+            
+            // Affichage de la note en fraction (Ex: 12/17)
+            const finalScoreText = `${questionsCorrect} / ${questionsDone}`;
+            
+            document.getElementById('final-score').textContent = finalScoreText;
+            document.getElementById('total-done').textContent = questionsDone;
+        }
+
+        // Écouteur pour valider avec la touche ENTER
+        document.addEventListener('DOMContentLoaded', () => {
+            const answerInput = document.getElementById('answer-input');
+            if (answerInput) {
+                answerInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault(); // Empêche le comportement par défaut de la touche Enter
+                        checkAnswer();
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
